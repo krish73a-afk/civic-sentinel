@@ -1,0 +1,24 @@
+ body {
+            background:
+                radial-gradient(circle at 20% 10%, rgba(37,99,235,0.10), transparent 30%),
+                radial-gradient(circle at 80% 80%, rgba(14,165,233,0.08), transparent 30%),
+                #070b14;
+        }
+
+        .grid-bg {
+            background-image:
+                linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        .glass {
+            background: rgba(15, 23, 42, 0.68);
+            backdrop-filter: blur(18px);
+            border: 1px solid rgba(148,163,184,0.10);
+        }
+
+        .upload-dragover {
+            border-color: #3b82f6 !important;
+            background: rgba(37,99,235,0.08) !important;
+        }
