@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script>if (location.hostname === "127.0.0.1") { const address = new URL(location.href); address.hostname = "localhost"; location.replace(address.href); }</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Civic Sentinel | AI Civic Intelligence</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; background: #070b14; color: #f1f5f9; }
+    .page-bg { background-image: radial-gradient(circle at 15% 10%,rgba(37,99,235,.12),transparent 36%),radial-gradient(circle at 85% 80%,rgba(14,165,233,.08),transparent 32%),linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px); background-size: auto,auto,40px 40px,40px 40px; }
+    .glass { background: rgba(15,23,42,.78); border: 1px solid rgba(148,163,184,.12); backdrop-filter: blur(18px); }
+    #incidentMap { height: 420px; width: 100%; border-radius: 12px; background: #0f172a; z-index: 0; }
+    .incident-pin { border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px #0008; }
+    .incident-popup { color: #0f172a; font-family: Inter, system-ui, sans-serif; max-width: 260px; }
+    .incident-popup p { margin: 8px 0; }
+    .incident-popup strong { display: block; font-size: 14px; }
+    #dropArea.dragging { border-color: #3b82f6; background: rgba(37,99,235,.08); }
+  
+    [hidden] { display: none !important; }
+  </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <!-- JavaScript lives in a separate file in this folder. -->
+  <script src="./auth.js" defer></script>
+  <script src="./script.js" defer></script>
+</head>
+<body>
+<div class="page-bg min-h-screen">
+  <header class="border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-xl">
+    <nav class="max-w-7xl mx-auto px-5 md:px-8 h-20 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 shrink-0 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+        </div>
+        <div><h1 class="font-extrabold text-xl tracking-tight">CIVIC<span class="text-blue-400">SENTINEL</span></h1><p class="text-[10px] text-slate-500 tracking-[.22em] uppercase">Chandigarh Intelligence</p></div>
+      </div>
+      <span class="text-xs px-3 py-2 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 whitespace-nowrap">Hackathon Demo</span>
+    </nav>
+  </header>
+
+  <section id="accountSection" class="max-w-7xl mx-auto px-5 md:px-8 pt-6" aria-label="Your account">
+    <div class="glass rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
+      <p id="authStatus" role="status" class="text-sm text-slate-300">Connecting...</p>
+      <button id="signIn" type="button" class="bg-blue-600 rounded-lg px-4 py-2 text-sm" hidden>Continue with Google</button>
+      <button id="signOut" type="button" class="bg-slate-800 rounded-lg px-4 py-2 text-sm" hidden>Sign out</button>
+    </div>
+  </section>
+  <main id="appContent" hidden class="max-w-7xl mx-auto px-5 md:px-8 py-12">
+    <section class="mb-10">
+      <div class="inline-flex gap-2 items-center bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold px-4 py-2 rounded-full mb-6">✦ POWERED BY GEMINI AI</div>
+      <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight max-w-3xl">Your City.<br/><span class="text-blue-400">Your Voice.</span> Our Intelligence.</h2>
+      <p class="text-slate-400 text-base leading-relaxed mt-5 max-w-2xl">Report civic problems in Chandigarh using photographs. Our AI analyzes the evidence, identifies the problem, estimates its priority and suggests possible action.</p>
+    </section>
+
+    <section class="glass rounded-2xl p-6 md:p-8 mb-8" aria-labelledby="dashboardHeading">
+      <div class="flex items-center justify-between flex-wrap gap-3"><div><h3 id="dashboardHeading" class="text-xl font-bold">City Overview</h3><p id="overviewScope" class="text-sm text-slate-400 mt-2">Saved civic reports. Demo records are hidden.</p></div><button id="refreshSummary" type="button" class="px-4 py-2 bg-slate-800 rounded-lg disabled:opacity-50">Refresh overview</button></div>
+      <label class="inline-flex items-center gap-2 text-sm text-slate-400 mt-4"><input id="showDemoReports" type="checkbox" class="accent-blue-500" /> Show demo reports</label>
+      <p id="dashboardStatus" role="status" aria-live="polite" class="text-xs text-slate-400 mt-4">Loading overview...</p>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+        <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-5"><p class="text-sm text-slate-400">Total Reports</p><p id="countTotal" class="text-3xl font-bold mt-2">—</p></div>
+        <div class="bg-slate-950/60 border border-blue-500/20 rounded-xl p-5"><p class="text-sm text-blue-400">Open</p><p id="countOpen" class="text-3xl font-bold mt-2">—</p></div>
+        <div class="bg-slate-950/60 border border-amber-500/20 rounded-xl p-5"><p class="text-sm text-amber-400">In Progress</p><p id="countProgress" class="text-3xl font-bold mt-2">—</p></div>
+        <div class="bg-slate-950/60 border border-emerald-500/20 rounded-xl p-5"><p class="text-sm text-emerald-400">Resolved</p><p id="countResolved" class="text-3xl font-bold mt-2">—</p></div>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6 mt-6">
+        <div><h4 class="font-semibold mb-4">By Category</h4><div id="categorySummary" class="space-y-3"></div></div>
+        <div><h4 class="font-semibold mb-4">By Priority</h4><div id="prioritySummary" class="space-y-3"></div><p id="duplicateSummary" class="text-sm text-amber-400 mt-5"></p></div>
+      </div>
+    </section>
+    <div class="grid lg:grid-cols-[1fr_330px] gap-7">
+      <section class="glass rounded-2xl p-6 md:p-8">
+        <div class="flex items-center justify-between mb-8 gap-3"><div><h3 class="text-xl font-bold">Report an Issue</h3><p class="text-sm text-slate-500 mt-2">Upload evidence and provide a location.</p></div><span class="hidden sm:block text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 px-3 py-2 rounded-lg">NEW REPORT</span></div>
+
+        <label class="block text-sm text-slate-300 font-semibold mb-3">01 — Upload Evidence</label>
+        <div id="dropArea" class="border-2 border-dashed border-slate-700 bg-slate-950/40 rounded-2xl p-8 text-center transition-colors">
+          <div id="uploadContent">
+            <div class="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 mx-auto mb-5 flex items-center justify-center text-blue-400 text-3xl" aria-hidden="true">↑</div>
+            <h4 class="font-semibold text-slate-200">Upload a Photograph</h4>
+            <p class="text-sm text-slate-500 mt-2 mb-5">Drag and drop an image here.</p>
+            <button id="chooseFile" type="button" class="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-semibold transition">Choose Image</button>
+            <p class="text-xs text-slate-600 mt-4">JPG, PNG or WebP • Maximum 10 MB</p>
+          </div>
+          <div id="previewContainer" class="hidden">
+            <img id="previewImage" alt="Uploaded civic evidence preview" class="max-h-80 mx-auto rounded-xl border border-slate-700 object-contain" />
+            <p id="fileName" class="text-sm text-slate-400 mt-4 break-all"></p>
+            <div class="flex justify-center gap-3 mt-4">
+              <button id="changeImage" type="button" class="px-4 py-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-lg text-xs">Change Image</button>
+              <button id="removeImage" type="button" class="px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 rounded-lg text-xs">Remove</button>
+            </div>
+          </div>
+          <input id="fileInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" />
+        </div>
+
+        <div class="mt-8">
+          <label for="location" class="block text-sm text-slate-300 font-semibold mb-3">02 — Incident Location</label>
+          <div class="grid md:grid-cols-2 gap-4">
+            <select id="location" class="w-full bg-slate-950/70 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-300 outline-none focus:border-blue-500">
+              <option value="">Select Sector</option>
+              <option value="Sector 17, Chandigarh">Sector 17</option>
+              <option value="Sector 22, Chandigarh">Sector 22</option>
+              <option value="Sector 34, Chandigarh">Sector 34</option>
+              <option value="Sector 35, Chandigarh">Sector 35</option>
+              <option value="Sector 43, Chandigarh">Sector 43</option>
+              <option value="Sector 44, Chandigarh">Sector 44</option>
+            </select>
+            <button id="gpsButton" type="button" class="w-full px-4 py-3 border border-slate-700 bg-slate-950/70 rounded-xl text-sm text-slate-400 hover:border-blue-500 transition">📍 Use Current Location</button>
+          </div>
+          <p id="gpsInfo" class="text-xs text-slate-500 mt-3" aria-live="polite">Select a sector or allow GPS access.</p>
+        </div>
+
+        <div class="mt-8">
+          <label for="description" class="block text-sm text-slate-300 font-semibold mb-3">03 — Describe the Problem <span class="font-normal text-slate-500">(Optional)</span></label>
+          <textarea maxlength="5000" id="description" rows="4" placeholder="Example: Multiple potholes are making this road difficult to use..." class="w-full bg-slate-950/70 border border-slate-700 rounded-xl px-4 py-4 text-sm text-slate-200 placeholder:text-slate-600 outline-none focus:border-blue-500 resize-none"></textarea>
+          <p class="text-xs text-slate-500 mt-2">Your description helps the AI understand the context. Maximum 5,000 characters.</p>
+        </div>
+
+        <button id="analyzeButton" type="button" class="w-full mt-8 py-4 px-6 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-bold text-base transition shadow-lg shadow-blue-900/20">✦ Analyze with AI</button>
+        <p id="statusMessage" role="status" aria-live="polite" class="text-center text-sm text-slate-400 mt-4 min-h-5"></p>
+
+        <div id="resultCard" class="hidden mt-8 bg-slate-950/70 border border-blue-500/30 rounded-2xl p-6">
+          <div class="flex items-center justify-between flex-wrap gap-3 mb-6"><div><p class="text-xs text-blue-400 font-semibold mb-2">GEMINI ANALYSIS</p><h3 class="text-xl font-bold">Incident Analysis</h3></div><span id="priorityBadge" class="text-xs font-bold px-4 py-2 rounded-full bg-slate-800">PENDING</span></div>
+          <div class="mb-6"><p class="text-xs text-slate-500 uppercase tracking-widest mb-2">Detected Problem</p><h4 id="resultProblem" class="text-lg font-bold text-white"></h4></div>
+          <div class="grid sm:grid-cols-2 gap-4 mb-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4"><p class="text-xs text-slate-500 mb-2">Category</p><p id="resultCategory" class="font-semibold text-blue-400"></p></div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4"><p class="text-xs text-slate-500 mb-2">Location</p><p id="resultLocation" class="font-semibold text-slate-300 break-words"></p></div>
+          </div>
+          <div class="border-t border-slate-800 py-5"><h4 class="font-semibold mb-3">Visible Evidence</h4><p id="resultEvidence" class="text-sm text-slate-400 leading-relaxed"></p></div>
+          <div class="border-t border-slate-800 pt-5"><h4 class="font-semibold text-emerald-400 mb-3">Suggested Action</h4><p id="resultAction" class="text-sm text-slate-300 leading-relaxed"></p></div>
+          <button id="retrySave" type="button" class="hidden mt-5 px-4 py-2 bg-blue-600 rounded-lg">Retry saving report</button>
+          <img id="resultPhoto" alt="Saved incident evidence" class="hidden mt-5 max-h-72 rounded-xl object-contain" />
+          <button id="retryPhoto" type="button" class="hidden mt-4 px-4 py-2 bg-slate-800 rounded-lg">Retry saving evidence photo</button>
+          <p id="photoStatus" role="status" class="text-sm text-slate-400 mt-3"></p>
+          <div id="duplicateResult" class="hidden mt-4 border border-amber-500/30 rounded-xl p-4"></div>
+          <p id="saveStatus" role="status" class="text-sm text-slate-400 mt-4"></p>
+          <p class="text-xs text-slate-600 mt-6 pt-4 border-t border-slate-800">AI-generated preliminary assessment. Priority and suggested actions require human review.</p>
+        </div>
+      </section>
+
+      <aside class="space-y-6">
+        <div class="glass rounded-2xl p-6"><h3 class="font-bold text-lg mb-5">Demo Features</h3>
+          <div class="flex justify-between text-sm"><span class="text-slate-400">Frontend</span><span class="text-emerald-400">Ready</span></div>
+          <div class="h-px bg-slate-800 my-4"></div>
+          <div class="flex justify-between text-sm"><span class="text-slate-400">AI Analysis</span><span class="text-blue-400">Connected locally</span></div>
+          <div class="h-px bg-slate-800 my-4"></div>
+          <div class="flex justify-between text-sm"><span class="text-slate-400">Incident Map</span><span id="mapProjectStatus" class="text-blue-400">Loading</span></div>
+          <div class="h-px bg-slate-800 my-4"></div>
+          <div class="flex justify-between text-sm"><span class="text-slate-400">Duplicate Detection</span><span class="text-blue-400">Ready</span></div>
+        </div>
+        <div class="glass rounded-2xl p-6"><h3 class="font-bold text-lg">How it works</h3><ol class="text-sm text-slate-400 space-y-3 mt-4"><li>1. Upload a photo and provide its location.</li><li>2. Review the AI assessment and saved evidence.</li><li>3. Explore the map and review possible duplicates.</li><li>4. Track progress until the issue is resolved.</li></ol></div>
+        <div class="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-6"><p class="text-blue-400 font-semibold text-sm mb-3">✦ WHY CIVIC SENTINEL?</p><p class="text-sm text-slate-400 leading-relaxed">We turn photographs of civic problems into structured information that could help communities identify and prioritize local issues.</p><p class="text-xs text-slate-500 mt-4">Hackathon prototype for community civic reporting.</p></div>
+      </aside>
+    </div>
+    <section id="mapSection" class="glass rounded-2xl p-6 md:p-8 mt-8" aria-labelledby="mapHeading">
+      <div class="flex items-center justify-between gap-4 flex-wrap">
+        <div><h3 id="mapHeading" class="text-xl font-bold">Incident Map</h3><p class="text-sm text-slate-400 mt-2">Explore saved reports with GPS locations. Select a marker to see the details.</p></div>
+        <button id="fitMap" type="button" class="px-4 py-2 bg-slate-800 rounded-lg">Show all locations</button>
+      </div>
+      <div class="flex items-center gap-4 flex-wrap mt-5 mb-4 text-sm">
+        <label for="mapPriority" class="text-slate-300">Priority</label>
+        <select id="mapPriority" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2"><option value="ALL">All priorities</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option></select>
+        <span class="text-red-400">● High</span><span class="text-amber-400">● Medium</span><span class="text-emerald-400">● Low</span>
+      </div>
+      <p id="mapStatus" role="status" aria-live="polite" class="text-sm text-slate-400 mb-4">Loading saved locations...</p>
+      <div id="incidentMap" role="region" aria-label="Map of saved civic reports"></div>
+      <p id="mapTileStatus" role="status" class="text-xs text-amber-400 mt-3"></p>
+      <p class="text-xs text-slate-500 mt-3">Sector-only reports stay in Saved Reports until an exact GPS location is available. The map shows the most recent 50 reports.</p>
+    </section>
+    <section class="glass rounded-2xl p-6 md:p-8 mt-8" aria-labelledby="reportsHeading">
+      <div class="flex justify-between items-center gap-4"><h3 id="reportsHeading" class="text-xl font-bold">Saved Reports</h3><button id="refreshReports" type="button" class="px-4 py-2 bg-slate-800 rounded-lg">Refresh</button></div>
+      <p id="reportsStatus" role="status" class="text-sm text-slate-400 mt-4"></p>
+      <p class="text-xs text-slate-500 mt-3">Possible duplicates need human review. Checks compare the most recent 250 reports from the past 30 days; only Open or In Progress reports can match. GPS locations must be within 100 m, or both reports must name the same sector. Both reports are kept.</p>
+      <p class="text-xs text-slate-500 mt-3">Evidence photos are saved on this computer. Keep the backend uploads folder when moving or backing up the project.</p>
+      <div id="reportsList" class="grid md:grid-cols-2 gap-4 mt-5"></div>
+    </section>
+  </main>
+  <footer class="border-t border-slate-800 mt-16 py-8 text-center text-xs text-slate-600">CIVIC SENTINEL © 2026 — AI Civic Intelligence Prototype</footer>
+</div>
+</body>
+</html>
